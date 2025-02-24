@@ -10,9 +10,25 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
 
-    - name: Start Firefox with VNC
+    - name: Install required packages
       run: |
-        docker run -d --name firefox-vnc -p 5900:5900 -p 6080:6080 dorowu/ubuntu-desktop-lxde-vnc
+        sudo apt-get update
+        sudo apt-get install -y xvfb x11vnc firefox
+
+    - name: Start Xvfb (virtual display)
+      run: |
+        Xvfb :99 -screen 0 1024x768x24 &
+        export DISPLAY=:99
+
+    - name: Start Firefox
+      run: |
+        firefox &
+        sleep 5  # Wait for Firefox to start
+
+    - name: Start VNC server
+      run: |
+        x11vnc -display :99 -forever -shared -passwd password &
+        sleep 5  # Wait for VNC server to start
 
     - name: Install Cloudflared
       run: |
@@ -21,11 +37,12 @@ jobs:
 
     - name: Expose VNC service with Cloudflared
       run: |
-        ./cloudflared tunnel --url vnc://localhost:5900 &
-        ./cloudflared tunnel --url http://localhost:6080 &
+        ./cloudflared tunnel --url vnc://localhost:5900 > cloudflared.log 2>&1 &
         sleep 10  # Wait for Cloudflared to establish the tunnel
-        ./cloudflared tunnel --url vnc://localhost:5900 --logfile vnc.log &
-        ./cloudflared tunnel --url http://localhost:6080 --logfile http.log &
-        sleep 10  # Wait for Cloudflared to establish the tunnel
-        echo "VNC URL: $(cat vnc.log | grep -o 'https://[^ ]*')"
-        echo "HTTP URL: $(cat http.log | grep -o 'https://[^ ]*')"
+        echo "VNC URL: $(grep -o 'https://[^ ]*' cloudflared.log)"
+
+    - name: Keep the job running
+      run: |
+        while true; do
+          sleep 3600  # Keep the job alive for 1 hour (adjust as needed)
+        done
