@@ -7,10 +7,20 @@ jobs:
   setup-vnc:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Docker
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y docker.io
+          sudo apt-get install -y \
+            apt-transport-https \
+            ca-certificates \
+            curl \
+            gnupg \
+            lsb-release
+
+      - name: Install Docker using official script
+        run: |
+          curl -fsSL https://get.docker.com -o get-docker.sh
+          sh get-docker.sh
 
       - name: Run Firefox in Docker
         run: |
