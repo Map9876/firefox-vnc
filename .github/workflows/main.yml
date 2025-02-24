@@ -10,9 +10,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
 
-    - name: Set up Docker
+    - name: Set up Docker (fix conflicts)
       run: |
         sudo apt-get update
+        sudo apt-get remove -y containerd  # Remove conflicting containerd package
         sudo apt-get install -y docker.io
         sudo systemctl start docker
         sudo systemctl enable docker
@@ -38,13 +39,13 @@ jobs:
         wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared
         chmod +x cloudflared
 
-    - name: Expose Firefox with Cloudflared
+    - name: Expose Firefox with Cloudflared (TCP protocol)
       run: |
+        ./cloudflared tunnel --url tcp://localhost:5900 > vnc.log 2>&1 &
         ./cloudflared tunnel --url http://localhost:5800 > web.log 2>&1 &
-        ./cloudflared tunnel --url vnc://localhost:5900 > vnc.log 2>&1 &
         sleep 10  # Wait for Cloudflared to establish the tunnel
         echo "Firefox Web URL: $(grep -o 'https://[^ ]*' web.log)"
-        echo "VNC URL: $(grep -o 'https://[^ ]*' vnc.log)"
+        echo "VNC TCP URL: $(grep -o 'https://[^ ]*' vnc.log)"
 
     - name: Keep the job running
       run: |
