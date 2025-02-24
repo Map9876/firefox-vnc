@@ -1,45 +1,50 @@
-name: Firefox with VNC and Cloudflared
+name: Firefox with Cloudflared
 
 on: [push]
 
 jobs:
-  firefox-vnc:
+  deploy-firefox:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
 
-    - name: Install required packages
+    - name: Set up Docker
       run: |
         sudo apt-get update
-        sudo apt-get install -y xvfb x11vnc firefox
+        sudo apt-get install -y docker.io
+        sudo systemctl start docker
+        sudo systemctl enable docker
 
-    - name: Start Xvfb (virtual display)
+    - name: Deploy Firefox container
       run: |
-        Xvfb :99 -screen 0 1024x768x24 &
-        export DISPLAY=:99
-
-    - name: Start Firefox
-      run: |
-        firefox &
-        sleep 5  # Wait for Firefox to start
-
-    - name: Start VNC server
-      run: |
-        x11vnc -display :99 -forever -shared -passwd password &
-        sleep 5  # Wait for VNC server to start
+        sudo docker run -d \
+          --name firefox \
+          -e TZ=Asia/Hong_Kong \
+          -e DISPLAY_WIDTH=1920 \
+          -e DISPLAY_HEIGHT=1080 \
+          -e KEEP_APP_RUNNING=1 \
+          -e ENABLE_CJK_FONT=1 \
+          -e VNC_PASSWORD=admin \
+          -p 5800:5800 \
+          -p 5900:5900 \
+          -v /data/firefox/config:/config:rw \
+          --shm-size 2g \
+          jlesage/firefox
 
     - name: Install Cloudflared
       run: |
         wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared
         chmod +x cloudflared
 
-    - name: Expose VNC service with Cloudflared
+    - name: Expose Firefox with Cloudflared
       run: |
-        ./cloudflared tunnel --url vnc://localhost:5900 > cloudflared.log 2>&1 &
+        ./cloudflared tunnel --url http://localhost:5800 > web.log 2>&1 &
+        ./cloudflared tunnel --url vnc://localhost:5900 > vnc.log 2>&1 &
         sleep 10  # Wait for Cloudflared to establish the tunnel
-        echo "VNC URL: $(grep -o 'https://[^ ]*' cloudflared.log)"
+        echo "Firefox Web URL: $(grep -o 'https://[^ ]*' web.log)"
+        echo "VNC URL: $(grep -o 'https://[^ ]*' vnc.log)"
 
     - name: Keep the job running
       run: |
