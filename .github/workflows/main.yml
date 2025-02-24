@@ -1,0 +1,31 @@
+name: Firefox with VNC and Cloudflared
+
+on: [push]
+
+jobs:
+  firefox-vnc:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Start Firefox with VNC
+      run: |
+        docker run -d --name firefox-vnc -p 5900:5900 -p 6080:6080 dorowu/ubuntu-desktop-lxde-vnc
+
+    - name: Install Cloudflared
+      run: |
+        wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared
+        chmod +x cloudflared
+
+    - name: Expose VNC service with Cloudflared
+      run: |
+        ./cloudflared tunnel --url vnc://localhost:5900 &
+        ./cloudflared tunnel --url http://localhost:6080 &
+        sleep 10  # Wait for Cloudflared to establish the tunnel
+        ./cloudflared tunnel --url vnc://localhost:5900 --logfile vnc.log &
+        ./cloudflared tunnel --url http://localhost:6080 --logfile http.log &
+        sleep 10  # Wait for Cloudflared to establish the tunnel
+        echo "VNC URL: $(cat vnc.log | grep -o 'https://[^ ]*')"
+        echo "HTTP URL: $(cat http.log | grep -o 'https://[^ ]*')"
