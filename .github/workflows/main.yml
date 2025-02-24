@@ -7,42 +7,24 @@ jobs:
   setup-vnc:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Firefox and VNC
+      - name: Install Docker
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            firefox \
-            tightvncserver \
-            x11-xserver-utils \
-            xvfb \
-            novnc \
-            git
+          sudo apt-get install -y docker.io
 
-      - name: Configure VNC
+      - name: Run Firefox in Docker
         run: |
-          mkdir -p ~/.vnc
-          echo "password" | vncpasswd -f > ~/.vnc/passwd
-          chmod 600 ~/.vnc/passwd
-          
-          # 创建简化的xstartup文件，只启动Firefox
-          cat > ~/.vnc/xstartup << 'EOF'
-          #!/bin/bash
-          xrdb $HOME/.Xresources
-          firefox --no-remote &
-          EOF
-          chmod +x ~/.vnc/xstartup
-
-      - name: Start VNC Server
-        run: |
-          vncserver :1 -geometry 1280x800 -depth 24
-          echo "VNC server started on port 5901"
-
-      - name: Install and Setup noVNC
-        run: |
-          git clone https://github.com/novnc/noVNC.git
-          cd noVNC
-          ./utils/novnc_proxy --vnc localhost:5901 &
-          sleep 5
+          docker run -d --name firefox \
+            -e TZ=Asia/Hong_Kong \
+            -e DISPLAY_WIDTH=1920 \
+            -e DISPLAY_HEIGHT=1080 \
+            -e KEEP_APP_RUNNING=1 \
+            -e ENABLE_CJK_FONT=1 \
+            -e VNC_PASSWORD=admin \
+            -p 5800:5800 -p 5900:5900 \
+            -v /data/firefox/config:/config:rw \
+            --shm-size 2g \
+            jlesage/firefox
 
       - name: Install Cloudflared
         run: |
@@ -51,8 +33,8 @@ jobs:
 
       - name: Start Cloudflared
         run: |
-          # 直接转发 noVNC 端口 6080
-          cloudflared tunnel --url http://localhost:6080 &
+          # 转发 noVNC 端口 5800
+          cloudflared tunnel --url http://localhost:5800 &
           sleep 5
           
           # 获取并显示隧道URL
@@ -62,16 +44,15 @@ jobs:
 
       - name: Keep Alive and Monitor
         run: |
-          echo "=== VNC Server Information ==="
-          echo "noVNC端口: 6080"
-          echo "VNC端口: 5901"
-          echo "VNC密码: password"
+          echo "=== Firefox VNC Server Information ==="
+          echo "noVNC端口: 5800"
+          echo "VNC端口: 5900"
+          echo "VNC密码: admin"
           echo "说明: 使用浏览器连接时，主机地址使用上面cloudflared生成的域名"
           echo "端口使用: 复制cloudflared URL后的端口号"
           
           while true; do
             echo "=== Status Update $(date) ==="
-            ps aux | grep vnc
-            ps aux | grep firefox
+            docker ps
             sleep 300
           done
