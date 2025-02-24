@@ -37,7 +37,7 @@ jobs:
 
     - name: Expose VNC service with Cloudflared
       run: |
-        ./cloudflared tunnel --url vnc://localhost:5900 > cloudflared.log 2>&1 &
+        ./cloudflared tunnel --url tcp://localhost:5900 > cloudflared.log 2>&1 &
         sleep 10  # Wait for Cloudflared to establish the tunnel
         echo "VNC URL: $(grep -o 'https://[^ ]*' cloudflared.log)"
 
