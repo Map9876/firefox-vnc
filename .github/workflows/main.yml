@@ -1,49 +1,77 @@
-name: Firefox with VNC and Cloudflared
+name: Firefox VNC Server
 
-on: [push]
-
+on:
+  workflow_dispatch:
+  
 jobs:
-  firefox-vnc:
+  setup-vnc:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Install Firefox and VNC
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            firefox \
+            tightvncserver \
+            x11-xserver-utils \
+            xvfb \
+            novnc \
+            git
 
-    - name: Install required packages
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y xvfb x11vnc firefox
+      - name: Configure VNC
+        run: |
+          mkdir -p ~/.vnc
+          echo "password" | vncpasswd -f > ~/.vnc/passwd
+          chmod 600 ~/.vnc/passwd
+          
+          # 创建简化的xstartup文件，只启动Firefox
+          cat > ~/.vnc/xstartup << 'EOF'
+          #!/bin/bash
+          xrdb $HOME/.Xresources
+          firefox --no-remote &
+          EOF
+          chmod +x ~/.vnc/xstartup
 
-    - name: Start Xvfb (virtual display)
-      run: |
-        Xvfb :99 -screen 0 1024x768x24 &
-        export DISPLAY=:99
+      - name: Start VNC Server
+        run: |
+          vncserver :1 -geometry 1280x800 -depth 24
+          echo "VNC server started on port 5901"
 
-    - name: Start Firefox
-      run: |
-        firefox &
-        sleep 5  # Wait for Firefox to start
+      - name: Install and Setup noVNC
+        run: |
+          git clone https://github.com/novnc/noVNC.git
+          cd noVNC
+          ./utils/novnc_proxy --vnc localhost:5901 &
+          sleep 5
 
-    - name: Start VNC server
-      run: |
-        x11vnc -display :99 -forever -shared -passwd password &
-        sleep 5  # Wait for VNC server to start
+      - name: Install Cloudflared
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared-linux-amd64.deb
 
-    - name: Install Cloudflared
-      run: |
-        wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared
-        chmod +x cloudflared
+      - name: Start Cloudflared
+        run: |
+          # 直接转发 noVNC 端口 6080
+          cloudflared tunnel --url http://localhost:6080 &
+          sleep 5
+          
+          # 获取并显示隧道URL
+          echo "等待Cloudflared隧道URL..."
+          sleep 10
+          ps aux | grep cloudflared
 
-    - name: Expose VNC service with Cloudflared
-      run: |
-        ./cloudflared tunnel --url tcp://localhost:5900 > cloudflared.log 2>&1 &
-        sleep 10  # Wait for Cloudflared to establish the tunnel
-        echo "VNC URL: $(grep -o 'https://[^ ]*' cloudflared.log)"
-        
-        cloudflared tunnel info
-    - name: Keep the job running
-      run: |
-        while true; do
-          sleep 3600  # Keep the job alive for 1 hour (adjust as needed)
-        done
+      - name: Keep Alive and Monitor
+        run: |
+          echo "=== VNC Server Information ==="
+          echo "noVNC端口: 6080"
+          echo "VNC端口: 5901"
+          echo "VNC密码: password"
+          echo "说明: 使用浏览器连接时，主机地址使用上面cloudflared生成的域名"
+          echo "端口使用: 复制cloudflared URL后的端口号"
+          
+          while true; do
+            echo "=== Status Update $(date) ==="
+            ps aux | grep vnc
+            ps aux | grep firefox
+            sleep 300
+          done
