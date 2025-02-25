@@ -1,4 +1,4 @@
-name: Firefox VNC Server
+name: firefox vnc https mobile user agent
 
 on:
   workflow_dispatch:
