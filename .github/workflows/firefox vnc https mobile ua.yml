@@ -31,8 +31,8 @@ jobs:
         run: |
           docker run -d --name firefox \
             -e TZ=Asia/Hong_Kong \
-            -e DISPLAY_WIDTH=1080 \
-            -e DISPLAY_HEIGHT=1920 \
+            -e DISPLAY_WIDTH=1920 \
+            -e DISPLAY_HEIGHT=1080 \
             -e KEEP_APP_RUNNING=1 \
             -e ENABLE_CJK_FONT=1 \
             -e VNC_PASSWORD=admin \
