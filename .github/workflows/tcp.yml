@@ -51,7 +51,7 @@ jobs:
       - name: Start Cloudflared
         run: |
           # Start Cloudflared tunnel without authentication
-          cloudflared tunnel --tcp tcp://localhost:5901 &
+          cloudflared tunnel --url tcp://localhost:5901 &
           sleep 5  # Wait for tunnel to establish
           
           # Print the tunnel URL
